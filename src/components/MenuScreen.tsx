@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, X, Settings } from 'lucide-react';
-import { Product, getProducts, addProduct, updateProduct, deleteProduct, addToCart } from '@/lib/storage';
+import { Plus, Pencil, Trash2, Settings, Lock } from 'lucide-react';
+import { Product, addProduct, updateProduct, deleteProduct, addToCart } from '@/lib/storage';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { LoginModal } from '@/components/LoginModal';
 
 interface MenuScreenProps {
   products: Product[];
@@ -10,7 +12,9 @@ interface MenuScreenProps {
 }
 
 export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScreenProps) {
+  const { isAuthenticated, login } = useAuth();
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -19,6 +23,25 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
     price: '',
     image: '',
   });
+
+  const handleAdminClick = () => {
+    if (showAdmin) {
+      setShowAdmin(false);
+      return;
+    }
+    
+    if (isAuthenticated) {
+      setShowAdmin(true);
+    } else {
+      setShowLoginModal(true);
+    }
+  };
+
+  const handleLoginSuccess = () => {
+    login();
+    setShowLoginModal(false);
+    setShowAdmin(true);
+  };
 
   const handleAddToCart = (product: Product) => {
     addToCart(product);
@@ -75,13 +98,19 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
 
   return (
     <div className="animate-fade-in">
+      <LoginModal
+        open={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onSuccess={handleLoginSuccess}
+      />
+
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-3xl font-display text-foreground">CARDÁPIO</h2>
         <button
-          onClick={() => setShowAdmin(!showAdmin)}
+          onClick={handleAdminClick}
           className={`btn-secondary flex items-center gap-2 ${showAdmin ? 'bg-primary text-primary-foreground' : ''}`}
         >
-          <Settings className="w-4 h-4" />
+          {isAuthenticated ? <Settings className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
           Admin
         </button>
       </div>
