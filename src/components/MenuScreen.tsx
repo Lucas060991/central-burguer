@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plus, Pencil, Trash2, Settings, Lock } from 'lucide-react';
-import { Product, addProduct, updateProduct, deleteProduct, addToCart } from '@/lib/storage';
+import { Product, addToCart } from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginModal } from '@/components/LoginModal';
@@ -52,23 +52,10 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const productData = {
-      name: formData.name,
-      description: formData.description,
-      price: parseFloat(formData.price),
-      image: formData.image || 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop',
-    };
-
-    if (editingProduct) {
-      updateProduct(editingProduct.id, productData);
-      toast.success('Produto atualizado!');
-    } else {
-      addProduct(productData);
-      toast.success('Produto adicionado!');
-    }
-
+    // Note: Product management via Google Sheets is not implemented yet
+    // For now, products are read-only from the spreadsheet
+    toast.info('Gerenciamento de produtos via planilha em desenvolvimento');
     resetForm();
-    onProductsChange();
   };
 
   const handleEdit = (product: Product) => {
@@ -83,11 +70,8 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
   };
 
   const handleDelete = (product: Product) => {
-    if (confirm(`Remover "${product.name}"?`)) {
-      deleteProduct(product.id);
-      onProductsChange();
-      toast.success('Produto removido!');
-    }
+    // Note: Product management via Google Sheets is not implemented yet
+    toast.info('Gerenciamento de produtos via planilha em desenvolvimento');
   };
 
   const resetForm = () => {

@@ -1,5 +1,6 @@
-import { ChefHat, Clock, CheckCircle, Truck, MapPin } from 'lucide-react';
-import { Order, updateOrderStatus } from '@/lib/storage';
+import { useState } from 'react';
+import { ChefHat, Clock, CheckCircle, Truck, MapPin, Loader2 } from 'lucide-react';
+import { Order, updateOrderStatus } from '@/lib/api';
 import { toast } from 'sonner';
 
 interface KitchenScreenProps {
@@ -8,10 +9,20 @@ interface KitchenScreenProps {
 }
 
 export function KitchenScreen({ orders, onOrdersChange }: KitchenScreenProps) {
-  const handleOrderReady = (order: Order) => {
-    updateOrderStatus(order.id, 'payment');
-    onOrdersChange();
-    toast.success(`Pedido #${order.orderNumber} pronto para pagamento!`);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const handleOrderReady = async (order: Order) => {
+    setProcessingId(order.id);
+    try {
+      await updateOrderStatus(order.id, 'payment');
+      await onOrdersChange();
+      toast.success(`Pedido #${order.orderNumber} pronto para pagamento!`);
+    } catch (error) {
+      toast.error('Erro ao atualizar pedido. Tente novamente.');
+      console.error(error);
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   if (orders.length === 0) {
@@ -89,9 +100,19 @@ export function KitchenScreen({ orders, onOrdersChange }: KitchenScreenProps) {
             <button
               onClick={() => handleOrderReady(order)}
               className="btn-success w-full flex items-center justify-center gap-2"
+              disabled={processingId === order.id}
             >
-              <CheckCircle className="w-5 h-5" />
-              Pedido Pronto
+              {processingId === order.id ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Atualizando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-5 h-5" />
+                  Pedido Pronto
+                </>
+              )}
             </button>
           </div>
         ))}

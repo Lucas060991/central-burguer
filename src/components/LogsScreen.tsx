@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FileText, Trash2, Printer, ChevronDown, ChevronUp, Truck, MapPin } from 'lucide-react';
-import { LogEntry, clearLogs } from '@/lib/storage';
+import { LogEntry, clearLogs } from '@/lib/api';
 import { toast } from 'sonner';
 
 interface LogsScreenProps {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Minus, Plus, Trash2, Truck, ShoppingBag } from 'lucide-react';
-import { CartItem, Customer, updateCartItemQuantity, createOrder } from '@/lib/storage';
+import { Minus, Plus, Trash2, Truck, ShoppingBag, Loader2 } from 'lucide-react';
+import { CartItem, Customer, updateCartItemQuantity, createOrder } from '@/lib/api';
 import { toast } from 'sonner';
 
 interface CartScreenProps {
@@ -13,6 +13,7 @@ const DELIVERY_FEE = 5.00;
 
 export function CartScreen({ cart, onCartChange, onOrderCreated }: CartScreenProps) {
   const [isDelivery, setIsDelivery] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [customer, setCustomer] = useState<Customer>({
     name: '',
     address: '',
@@ -27,7 +28,7 @@ export function CartScreen({ cart, onCartChange, onOrderCreated }: CartScreenPro
     onCartChange();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (cart.length === 0) {
@@ -45,12 +46,20 @@ export function CartScreen({ cart, onCartChange, onOrderCreated }: CartScreenPro
       return;
     }
 
-    const order = createOrder(customer, cart, isDelivery);
-    toast.success(`Pedido #${order.orderNumber} enviado para a cozinha!`);
-    
-    setCustomer({ name: '', address: '', phone: '' });
-    setIsDelivery(false);
-    onOrderCreated();
+    setIsSubmitting(true);
+    try {
+      const order = await createOrder(customer, cart, isDelivery);
+      toast.success(`Pedido #${order.orderNumber} enviado para a cozinha!`);
+      
+      setCustomer({ name: '', address: '', phone: '' });
+      setIsDelivery(false);
+      onOrderCreated();
+    } catch (error) {
+      toast.error('Erro ao criar pedido. Tente novamente.');
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (cart.length === 0) {
@@ -178,8 +187,19 @@ export function CartScreen({ cart, onCartChange, onOrderCreated }: CartScreenPro
             </div>
           </div>
 
-          <button type="submit" className="btn-primary w-full text-lg py-4">
-            Confirmar Pedido
+          <button 
+            type="submit" 
+            className="btn-primary w-full text-lg py-4 flex items-center justify-center gap-2"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Enviando...
+              </>
+            ) : (
+              'Confirmar Pedido'
+            )}
           </button>
         </div>
       </form>

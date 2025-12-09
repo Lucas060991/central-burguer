@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { CreditCard, Banknote, QrCode, Printer, Truck, MapPin } from 'lucide-react';
-import { Order, updateOrderStatus, addLog } from '@/lib/storage';
+import { CreditCard, Banknote, QrCode, Printer, Truck, MapPin, Loader2 } from 'lucide-react';
+import { Order, updateOrderStatus, addLog } from '@/lib/api';
 import { toast } from 'sonner';
 
 interface PaymentScreenProps {
@@ -19,30 +19,39 @@ const paymentMethods: { id: PaymentMethod; label: string; icon: typeof CreditCar
 export function PaymentScreen({ orders, onOrdersChange }: PaymentScreenProps) {
   const [selectedPayment, setSelectedPayment] = useState<Record<string, PaymentMethod>>({});
   const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
-  const handlePayment = (order: Order) => {
+  const handlePayment = async (order: Order) => {
     const method = selectedPayment[order.id];
     if (!method) {
       toast.error('Selecione uma forma de pagamento');
       return;
     }
 
-    // Update order with payment method
-    updateOrderStatus(order.id, 'completed', method);
-    
-    // Add to log
-    addLog({ ...order, paymentMethod: method });
-    
-    // Set printing order for receipt
-    setPrintingOrder({ ...order, paymentMethod: method });
-    
-    // Trigger print
-    setTimeout(() => {
-      window.print();
-      setPrintingOrder(null);
-      onOrdersChange();
-      toast.success(`Pedido #${order.orderNumber} finalizado!`);
-    }, 100);
+    setProcessingId(order.id);
+    try {
+      // Update order with payment method
+      await updateOrderStatus(order.id, 'completed');
+      
+      // Add to log
+      addLog({ ...order, paymentMethod: method });
+      
+      // Set printing order for receipt
+      setPrintingOrder({ ...order, paymentMethod: method });
+      
+      // Trigger print
+      setTimeout(async () => {
+        window.print();
+        setPrintingOrder(null);
+        await onOrdersChange();
+        toast.success(`Pedido #${order.orderNumber} finalizado!`);
+      }, 100);
+    } catch (error) {
+      toast.error('Erro ao finalizar pedido. Tente novamente.');
+      console.error(error);
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   if (orders.length === 0) {
@@ -147,9 +156,19 @@ export function PaymentScreen({ orders, onOrdersChange }: PaymentScreenProps) {
             <button
               onClick={() => handlePayment(order)}
               className="btn-primary w-full flex items-center justify-center gap-2"
+              disabled={processingId === order.id}
             >
-              <Printer className="w-5 h-5" />
-              Finalizar e Imprimir
+              {processingId === order.id ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Processando...
+                </>
+              ) : (
+                <>
+                  <Printer className="w-5 h-5" />
+                  Finalizar e Imprimir
+                </>
+              )}
             </button>
           </div>
         ))}
