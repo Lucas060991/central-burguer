@@ -1,7 +1,7 @@
 import { toast } from 'sonner';
 
 // ⚠️ SUBSTITUA PELA SUA URL DO APPS SCRIPT
-const API_URL = "https://script.google.com/macros/s/AKfycbxJp7QPv0Bcrwfwauqtvk-UGDcf9oSkRAIL52cR2D86Mj81Hs0Edx_ULApylFB884QsNQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbz8w08V-c645VUFrl8tIq0iPSDo41H4McE7p9qoIqw_ZradmKPEnUlKVc0CbF0rwNaaAg/exec";
 
 // --- TIPAGENS ---
 export interface Product {
