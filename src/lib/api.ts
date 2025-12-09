@@ -2,7 +2,7 @@
 import { Product, LogEntry, Order } from './storage';
 
 // SUBSTITUA PELA URL QUE VOCÊ COPIOU NO PASSO 2
-const GOOGLE_SCRIPT_URL = https://script.google.com/macros/s/AKfycbzlvpHs41uI-Nfu0YV36Gbbgk1wCQ0SMb8NpYpoDqIdpAi40nBmm6R7lT88R-iUwxYK2A/exec;
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzlvpHs41uI-Nfu0YV36Gbbgk1wCQ0SMb8NpYpoDqIdpAi40nBmm6R7lT88R-iUwxYK2A/exec";
 
 export const api = {
   // --- Produtos ---
