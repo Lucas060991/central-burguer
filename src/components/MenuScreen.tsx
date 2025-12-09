@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Plus, Pencil, Trash2, Settings, Lock } from 'lucide-react';
-import { Product, addProduct, updateProduct, deleteProduct, addToCart } from '@/lib/storage';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginModal } from '@/components/LoginModal';
-import { api } from '@/lib/api'; // Importe a API
-import { Product, addToCart } from '@/lib/storage'; // Manter addToCart local
+import { api } from '@/lib/api'; // API do Google Sheets
+import { Product, addToCart } from '@/lib/storage'; // Funções locais
 
 interface MenuScreenProps {
   products: Product[];
@@ -14,8 +13,6 @@ interface MenuScreenProps {
 }
 
 export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScreenProps) {
-  
-
   const { isAuthenticated, login } = useAuth();
   const [showAdmin, setShowAdmin] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -53,10 +50,10 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
     toast.success(`${product.name} adicionado ao carrinho!`);
   };
 
-   const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-   const productData = {
+    const productData = {
       name: formData.name,
       description: formData.description,
       price: parseFloat(formData.price),
@@ -89,7 +86,7 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
     setShowForm(true);
   };
 
-   const handleDelete = async (product: Product) => {
+  const handleDelete = async (product: Product) => {
     if (confirm(`Remover "${product.name}"?`)) {
       try {
         await api.deleteProduct(product.id);
@@ -97,6 +94,7 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
         toast.success('Produto removido!');
       } catch (error) {
         toast.error('Erro ao remover produto');
+      }
     }
   };
 
