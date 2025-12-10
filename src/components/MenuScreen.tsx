@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, Settings, Lock, Loader2 } from 'lucide-react'; // Adicionei Loader2
-import { Product, updateProduct, deleteProduct, addToCart } from '@/lib/storage'; // Removi addProduct local
+import { Plus, Pencil, Trash2, Settings, Lock, Loader2, Search, X } from 'lucide-react'; // <--- Adicionei Search e X
+import { Product, addToCart } from '@/lib/storage';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginModal } from '@/components/LoginModal';
-import { api } from '@/services/api'; // <--- IMPORTANTE: Importando a API
+import { api } from '@/services/api';
 
 interface MenuScreenProps {
   products: Product[];
@@ -16,10 +16,11 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
   const { isAuthenticated, login } = useAuth();
   const [showAdmin, setShowAdmin] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  
-  // Novo estado para controlar o loading do envio
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // 1. NOVO ESTADO DA PESQUISA
+  const [searchTerm, setSearchTerm] = useState('');
 
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -27,20 +28,21 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
     description: '',
     price: '',
     image: '',
-    category: 'Lanches' // Adicionei categoria (obrigatório para a planilha)
+    category: 'Lanches'
+  });
+
+  // 2. LÓGICA DE FILTRO (Nome ou Descrição)
+  const filteredProducts = products.filter(product => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      product.name.toLowerCase().includes(searchLower) ||
+      product.description.toLowerCase().includes(searchLower) ||
+      product.category.toLowerCase().includes(searchLower)
+    );
   });
 
   const handleAdminClick = () => {
-    if (showAdmin) {
-      setShowAdmin(false);
-      return;
-    }
-    
-    if (isAuthenticated) {
-      setShowAdmin(true);
-    } else {
-      setShowLoginModal(true);
-    }
+    isAuthenticated ? setShowAdmin(!showAdmin) : setShowLoginModal(true);
   };
 
   const handleLoginSuccess = () => {
@@ -49,16 +51,9 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
     setShowAdmin(true);
   };
 
-  const handleAddToCart = (product: Product) => {
-    addToCart(product);
-    onAddToCart(product);
-    toast.success(`${product.name} adicionado ao carrinho!`);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true); // Bloqueia botão
-
+    setIsSubmitting(true);
     try {
       const productData = {
         name: formData.name,
@@ -68,71 +63,50 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
         image: formData.image || 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop',
       };
 
-      if (editingProduct) {
-        // OBS: A edição ainda é local. Para editar na planilha, precisaria atualizar o script.
-        updateProduct(editingProduct.id, productData);
-        toast.success('Produto atualizado localmente!');
+      const sucesso = await api.addProduct(productData);
+      if (sucesso) {
+        toast.success('Produto salvo!');
+        setFormData({ name: '', description: '', price: '', image: '', category: 'Lanches' });
+        setShowForm(false);
+        setTimeout(onProductsChange, 1500); 
       } else {
-        // --- AQUI A MÁGICA ACONTECE ---
-        // Envia para o Google Sheets
-        const sucesso = await api.addProduct(productData);
-        
-        if (sucesso) {
-            toast.success('Produto enviado para a Planilha!');
-        } else {
-            toast.error('Erro ao salvar na planilha.');
-        }
+        toast.error('Erro ao salvar.');
       }
-
-      resetForm();
-      // Dá um tempo para o Google Sheets processar antes de recarregar
-      setTimeout(() => {
-        onProductsChange(); 
-      }, 2000);
-
     } catch (error) {
-      console.error(error);
       toast.error("Erro inesperado");
     } finally {
-      setIsSubmitting(false); // Libera botão
+      setIsSubmitting(false);
     }
   };
 
-  const handleEdit = (product: Product) => {
-    setEditingProduct(product);
-    setFormData({
-      name: product.name,
-      description: product.description,
-      price: product.price.toString(),
-      image: product.image,
-      category: product.category || 'Lanches'
-    });
-    setShowForm(true);
-  };
-
-  const handleDelete = (product: Product) => {
-    if (confirm(`Remover "${product.name}"? (Isso removerá apenas visualmente por enquanto)`)) {
-      deleteProduct(product.id);
-      onProductsChange();
-      toast.success('Produto removido!');
+  const handleDelete = async (product: Product) => {
+    if (!confirm(`Apagar "${product.name}"?`)) return;
+    setDeletingId(product.id);
+    try {
+      const sucesso = await api.deleteProduct(product.id);
+      if (sucesso) {
+        toast.success('Produto apagado!');
+        setTimeout(onProductsChange, 1500);
+      } else {
+        toast.error('Erro ao apagar.');
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setDeletingId(null);
     }
-  };
-
-  const resetForm = () => {
-    setFormData({ name: '', description: '', price: '', image: '', category: 'Lanches' });
-    setEditingProduct(null);
-    setShowForm(false);
   };
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in space-y-6">
       <LoginModal
         open={showLoginModal}
         onClose={() => setShowLoginModal(false)}
         onSuccess={handleLoginSuccess}
       />
 
-      <div className="flex items-center justify-between mb-6">
+      {/* CABEÇALHO */}
+      <div className="flex items-center justify-between">
         <h2 className="text-3xl font-display text-foreground">CARDÁPIO</h2>
         <button
           onClick={handleAdminClick}
@@ -143,17 +117,36 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
         </button>
       </div>
 
+      {/* 3. BARRA DE PESQUISA (VISUAL) */}
+      <div className="relative">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-muted-foreground" />
+        </div>
+        <input
+          type="text"
+          placeholder="Buscar por nome, ingrediente ou categoria..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-10 pr-10 py-3 rounded-xl border border-border bg-card text-foreground focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all shadow-sm"
+        />
+        {searchTerm && (
+          <button 
+            onClick={() => setSearchTerm('')}
+            className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
+      </div>
+
+      {/* ÁREA ADMIN (FORMULÁRIO) */}
       {showAdmin && (
-        <div className="mb-6 p-4 bg-card rounded-xl border border-border animate-slide-in">
+        <div className="p-4 bg-card rounded-xl border border-border animate-slide-in">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Gerenciar Produtos</h3>
             {!showForm && (
-              <button
-                onClick={() => setShowForm(true)}
-                className="btn-primary flex items-center gap-2 text-sm py-2"
-              >
-                <Plus className="w-4 h-4" />
-                Novo Produto
+              <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2 text-sm py-2">
+                <Plus className="w-4 h-4" /> Novo Produto
               </button>
             )}
           </div>
@@ -163,7 +156,7 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input
                   type="text"
-                  placeholder="Nome do produto"
+                  placeholder="Nome"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="input-field"
@@ -173,7 +166,7 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
                 <input
                   type="number"
                   step="0.01"
-                  placeholder="Preço (R$)"
+                  placeholder="Preço"
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   className="input-field"
@@ -181,8 +174,6 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
                   disabled={isSubmitting}
                 />
               </div>
-              
-              {/* Adicionei campo de Categoria, útil para organizar na planilha */}
               <select 
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
@@ -194,7 +185,6 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
                 <option value="Combos">Combos</option>
                 <option value="Sobremesas">Sobremesas</option>
               </select>
-
               <input
                 type="text"
                 placeholder="Descrição"
@@ -206,33 +196,18 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
               />
               <input
                 type="url"
-                placeholder="URL da imagem (opcional)"
+                placeholder="URL da Imagem"
                 value={formData.image}
                 onChange={(e) => setFormData({ ...formData, image: e.target.value })}
                 className="input-field"
                 disabled={isSubmitting}
               />
+              
               <div className="flex gap-2">
-                <button 
-                  type="submit" 
-                  className="btn-primary flex items-center gap-2"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Salvando...
-                    </>
-                  ) : (
-                    editingProduct ? 'Atualizar' : 'Adicionar'
-                  )}
+                <button type="submit" className="btn-primary flex items-center gap-2" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar"}
                 </button>
-                <button 
-                  type="button" 
-                  onClick={resetForm} 
-                  className="btn-secondary"
-                  disabled={isSubmitting}
-                >
+                <button type="button" onClick={() => setShowForm(false)} className="btn-secondary" disabled={isSubmitting}>
                   Cancelar
                 </button>
               </div>
@@ -241,55 +216,48 @@ export function MenuScreen({ products, onProductsChange, onAddToCart }: MenuScre
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {products.map((product, index) => (
-          <div
-            key={product.id}
-            className="product-card animate-slide-in"
-            style={{ animationDelay: `${index * 0.05}s` }}
-          >
-            <div className="relative h-48 overflow-hidden">
-              <img
-                src={product.image}
-                alt={product.name}
-                className="w-full h-full object-cover"
-              />
-              {showAdmin && (
-                <div className="absolute top-2 right-2 flex gap-2">
-                  <button
-                    onClick={() => handleEdit(product)}
-                    className="p-2 bg-card/90 rounded-lg hover:bg-card transition-colors"
+      {/* 4. LISTA DE PRODUTOS (USANDO A LISTA FILTRADA) */}
+      {filteredProducts.length === 0 ? (
+        <div className="text-center py-10 text-muted-foreground">
+          <p>Nenhum produto encontrado com "{searchTerm}"</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredProducts.map((product, index) => (
+            <div key={product.id} className="product-card animate-slide-in" style={{ animationDelay: `${index * 0.05}s` }}>
+              <div className="relative h-48 overflow-hidden">
+                <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                
+                {showAdmin && (
+                  <div className="absolute top-2 right-2 flex gap-2">
+                    <button
+                      onClick={() => handleDelete(product)}
+                      disabled={deletingId === product.id}
+                      className="p-2 bg-red-500/90 rounded-lg hover:bg-red-600 transition-colors text-white"
+                    >
+                      {deletingId === product.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              <div className="p-4">
+                <h3 className="text-lg font-semibold text-foreground mb-1">{product.name}</h3>
+                <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{product.description}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-xl font-bold text-primary">R$ {product.price.toFixed(2)}</span>
+                  <button 
+                    onClick={() => { addToCart(product); onAddToCart(product); toast.success("Adicionado!"); }} 
+                    className="btn-primary py-2 px-4 text-sm flex items-center gap-2"
                   >
-                    <Pencil className="w-4 h-4 text-primary" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(product)}
-                    className="p-2 bg-card/90 rounded-lg hover:bg-card transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4 text-destructive" />
+                    <Plus className="w-4 h-4" /> Adicionar
                   </button>
                 </div>
-              )}
-            </div>
-            <div className="p-4">
-              <h3 className="text-lg font-semibold text-foreground mb-1">{product.name}</h3>
-              <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{product.description}</p>
-              <div className="flex items-center justify-between">
-                <span className="text-xl font-bold text-primary">
-                  R$ {product.price.toFixed(2)}
-                </span>
-                <button
-                  onClick={() => handleAddToCart(product)}
-                  className="btn-primary py-2 px-4 text-sm flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Adicionar
-                </button>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
