@@ -1,12 +1,18 @@
-// src/lib/storage.ts
+// Storage keys
+const STORAGE_KEYS = {
+  PRODUCTS: 'hamburgueria_products',
+  CART: 'hamburgueria_cart',
+  ORDERS: 'hamburgueria_orders',
+  LOGS: 'hamburgueria_logs',
+  ORDER_COUNTER: 'hamburgueria_order_counter',
+} as const;
 
-// --- TIPOS (Definidos localmente para evitar erros de importação) ---
+// Types
 export interface Product {
   id: string;
   name: string;
   description: string;
   price: number;
-  category: string;
   image: string;
 }
 
@@ -22,134 +28,287 @@ export interface Customer {
 
 export interface Order {
   id: string;
-  orderNumber: string;
-  items: CartItem[];
+  orderNumber: number;
   customer: Customer;
+  items: CartItem[];
+  subtotal: number;
+  deliveryFee: number;
   total: number;
-  status: 'payment' | 'kitchen' | 'completed'; // Fluxo: Pagamento -> Cozinha -> Histórico
-  timestamp: number;
   isDelivery: boolean;
+  status: 'kitchen' | 'payment' | 'completed';
+  createdAt: string;
+  paymentMethod?: 'pix' | 'dinheiro' | 'cartao';
 }
 
 export interface LogEntry {
-  id: string;
-  timestamp: number;
-  action: string;
-  details: string;
+  orderNumber: number;
+  dateTime: string;
+  customerName: string;
+  paymentMethod: string;
+  total: number;
+  // Full order data for reprinting
+  customer: Customer;
+  items: CartItem[];
+  subtotal: number;
+  deliveryFee: number;
+  isDelivery: boolean;
 }
 
-// --- FUNÇÕES SEGURAS (SAFE PARSE) ---
+// Default products
+const defaultProducts: Product[] = [
+  {
+    id: '1',
+    name: 'BIG-BASIC',
+    description: 'Hambúrguer artesanal com ingredientes selecionados',
+    price: 12.99,
+    image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop',
+  },
+  {
+    id: '2',
+    name: 'BIG-CLASSIC',
+    description: 'Hambúrguer clássico com queijo e molho especial',
+    price: 15.00,
+    image: 'https://images.unsplash.com/photo-1553979459-d2229ba7433b?w=400&h=300&fit=crop',
+  },
+  {
+    id: '3',
+    name: 'BIG-BURGUER',
+    description: 'Hambúrguer especial da casa',
+    price: 17.00,
+    image: 'https://images.unsplash.com/photo-1594212699903-ec8a3eca50f5?w=400&h=300&fit=crop',
+  },
+  {
+    id: '4',
+    name: 'BIG-SALADA',
+    description: 'Hambúrguer com salada fresca e ingredientes leves',
+    price: 20.00,
+    image: 'https://images.unsplash.com/photo-1520072959219-c595dc870360?w=400&h=300&fit=crop',
+  },
+  {
+    id: '5',
+    name: 'BIG-DOUBLÉ',
+    description: 'Hambúrguer duplo com muito sabor',
+    price: 25.00,
+    image: 'https://images.unsplash.com/photo-1586190848861-99aa4a171e90?w=400&h=300&fit=crop',
+  },
+  {
+    id: '6',
+    name: 'BIG-FOME',
+    description: 'Para quem está com muita fome',
+    price: 30.00,
+    image: 'https://images.unsplash.com/photo-1551782450-17144efb9c50?w=400&h=300&fit=crop',
+  },
+  {
+    id: '7',
+    name: 'BIG-BACON',
+    description: 'Hambúrguer com bacon crocante',
+    price: 33.00,
+    image: 'https://images.unsplash.com/photo-1553979459-d2229ba7433b?w=400&h=300&fit=crop',
+  },
+  {
+    id: '8',
+    name: 'BIG-MONSTER',
+    description: 'O maior hambúrguer da casa',
+    price: 35.00,
+    image: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=400&h=300&fit=crop',
+  },
+  {
+    id: '9',
+    name: 'BATATA P',
+    description: 'Porção pequena de batatas fritas',
+    price: 8.00,
+    image: 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=400&h=300&fit=crop',
+  },
+  {
+    id: '10',
+    name: 'BATATA M',
+    description: 'Porção média de batatas fritas',
+    price: 10.00,
+    image: 'https://images.unsplash.com/photo-1630384060421-cb20d0e0649d?w=400&h=300&fit=crop',
+  },
+  {
+    id: '11',
+    name: 'BATATA G',
+    description: 'Porção grande de batatas fritas',
+    price: 12.00,
+    image: 'https://images.unsplash.com/photo-1518013431117-eb1465fa5752?w=400&h=300&fit=crop',
+  },
+];
 
-// Função auxiliar para ler do localStorage sem quebrar
-const safeGet = <T>(key: string, fallback: T): T => {
+// Helper functions
+function getFromStorage<T>(key: string, defaultValue: T): T {
   try {
     const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : fallback;
-  } catch (error) {
-    console.warn(`Erro ao ler ${key}, resetando dados.`, error);
-    localStorage.removeItem(key); // Limpa o dado corrompido
-    return fallback;
+    return item ? JSON.parse(item) : defaultValue;
+  } catch {
+    return defaultValue;
   }
-};
+}
 
-// --- CARRINHO ---
+function setToStorage<T>(key: string, value: T): void {
+  localStorage.setItem(key, JSON.stringify(value));
+}
 
-export const getCart = (): CartItem[] => safeGet('hamb_central_cart', []);
+// Products
+export function getProducts(): Product[] {
+  const products = getFromStorage<Product[]>(STORAGE_KEYS.PRODUCTS, []);
+  if (products.length === 0) {
+    setToStorage(STORAGE_KEYS.PRODUCTS, defaultProducts);
+    return defaultProducts;
+  }
+  return products;
+}
 
-export const addToCart = (product: Product) => {
+export function saveProducts(products: Product[]): void {
+  setToStorage(STORAGE_KEYS.PRODUCTS, products);
+}
+
+export function addProduct(product: Omit<Product, 'id'>): Product {
+  const products = getProducts();
+  const newProduct: Product = {
+    ...product,
+    id: Date.now().toString(),
+  };
+  products.push(newProduct);
+  saveProducts(products);
+  return newProduct;
+}
+
+export function updateProduct(id: string, updates: Partial<Product>): void {
+  const products = getProducts();
+  const index = products.findIndex(p => p.id === id);
+  if (index !== -1) {
+    products[index] = { ...products[index], ...updates };
+    saveProducts(products);
+  }
+}
+
+export function deleteProduct(id: string): void {
+  const products = getProducts().filter(p => p.id !== id);
+  saveProducts(products);
+}
+
+// Cart
+export function getCart(): CartItem[] {
+  return getFromStorage<CartItem[]>(STORAGE_KEYS.CART, []);
+}
+
+export function saveCart(cart: CartItem[]): void {
+  setToStorage(STORAGE_KEYS.CART, cart);
+}
+
+export function addToCart(product: Product): void {
   const cart = getCart();
-  // Converte IDs para string para evitar duplicação
-  const index = cart.findIndex(item => String(item.id) === String(product.id));
+  const existingIndex = cart.findIndex(item => item.id === product.id);
   
-  if (index > -1) {
-    cart[index].quantity += 1;
+  if (existingIndex !== -1) {
+    cart[existingIndex].quantity += 1;
   } else {
     cart.push({ ...product, quantity: 1 });
   }
-  localStorage.setItem('hamb_central_cart', JSON.stringify(cart));
-};
+  
+  saveCart(cart);
+}
 
-export const updateCartItemQuantity = (productId: string, quantity: number) => {
+export function updateCartItemQuantity(productId: string, quantity: number): void {
   const cart = getCart();
-  let newCart;
-  if (quantity < 1) {
-    newCart = cart.filter(item => String(item.id) !== String(productId));
+  if (quantity <= 0) {
+    saveCart(cart.filter(item => item.id !== productId));
   } else {
-    newCart = cart.map(item => String(item.id) === String(productId) ? { ...item, quantity } : item);
+    const index = cart.findIndex(item => item.id === productId);
+    if (index !== -1) {
+      cart[index].quantity = quantity;
+      saveCart(cart);
+    }
   }
-  localStorage.setItem('hamb_central_cart', JSON.stringify(newCart));
-};
+}
 
-export const clearCart = () => localStorage.removeItem('hamb_central_cart');
+export function clearCart(): void {
+  saveCart([]);
+}
 
-// --- PEDIDOS (ORDER FLOW) ---
+// Orders
+export function getNextOrderNumber(): number {
+  const counter = getFromStorage<number>(STORAGE_KEYS.ORDER_COUNTER, 1000);
+  const nextNumber = counter + 1;
+  setToStorage(STORAGE_KEYS.ORDER_COUNTER, nextNumber);
+  return nextNumber;
+}
 
-export const createOrder = (customer: Customer, items: CartItem[], isDelivery: boolean): Order => {
-  const orderNumber = Math.floor(1000 + Math.random() * 9000).toString();
+export function getOrders(): Order[] {
+  return getFromStorage<Order[]>(STORAGE_KEYS.ORDERS, []);
+}
+
+export function saveOrders(orders: Order[]): void {
+  setToStorage(STORAGE_KEYS.ORDERS, orders);
+}
+
+export function createOrder(customer: Customer, items: CartItem[], isDelivery: boolean): Order {
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const deliveryFee = isDelivery ? 5.00 : 0;
+  const total = subtotal + deliveryFee;
   
-  const newOrder: Order = {
-    id: crypto.randomUUID(),
-    orderNumber,
-    items,
+  const order: Order = {
+    id: Date.now().toString(),
+    orderNumber: getNextOrderNumber(),
     customer,
-    total: items.reduce((acc, item) => acc + (item.price * item.quantity), 0) + (isDelivery ? 5 : 0),
-    status: 'payment', // Começa SEMPRE no pagamento
-    timestamp: Date.now(),
-    isDelivery
+    items,
+    subtotal,
+    deliveryFee,
+    total,
+    isDelivery,
+    status: 'kitchen',
+    createdAt: new Date().toISOString(),
   };
-
-  // Salva na lista de Pagamento
-  const paymentOrders = getOrdersByStatus('payment');
-  localStorage.setItem('hamb_central_orders_payment', JSON.stringify([...paymentOrders, newOrder]));
   
-  return newOrder;
-};
-
-export const getOrdersByStatus = (status: string): Order[] => {
-  return safeGet(`hamb_central_orders_${status}`, []);
-};
-
-export const updateOrderStatus = (orderId: string, newStatus: 'kitchen' | 'completed') => {
-  // Pega todas as listas possíveis para achar o pedido onde quer que ele esteja
-  const paymentOrders = getOrdersByStatus('payment');
-  const kitchenOrders = getOrdersByStatus('kitchen');
+  const orders = getOrders();
+  orders.push(order);
+  saveOrders(orders);
+  clearCart();
   
-  // Encontra o pedido
-  let order = paymentOrders.find(o => o.id === orderId) || kitchenOrders.find(o => o.id === orderId);
+  return order;
+}
 
-  if (!order) return; // Se não achar, aborta
-
-  // Remove das listas antigas
-  const newPayment = paymentOrders.filter(o => o.id !== orderId);
-  const newKitchen = kitchenOrders.filter(o => o.id !== orderId);
-  
-  localStorage.setItem('hamb_central_orders_payment', JSON.stringify(newPayment));
-  localStorage.setItem('hamb_central_orders_kitchen', JSON.stringify(newKitchen));
-
-  // Adiciona na nova lista
-  order.status = newStatus;
-
-  if (newStatus === 'kitchen') {
-    // Vai para cozinha
-    localStorage.setItem('hamb_central_orders_kitchen', JSON.stringify([...newKitchen, order]));
-  } else if (newStatus === 'completed') {
-    // Vai para o histórico de logs local
-    addLog('Pedido Finalizado', `Pedido #${order.orderNumber} finalizado.`);
+export function updateOrderStatus(orderId: string, status: Order['status'], paymentMethod?: Order['paymentMethod']): void {
+  const orders = getOrders();
+  const index = orders.findIndex(o => o.id === orderId);
+  if (index !== -1) {
+    orders[index].status = status;
+    if (paymentMethod) {
+      orders[index].paymentMethod = paymentMethod;
+    }
+    saveOrders(orders);
   }
-};
+}
 
-// --- LOGS ---
+export function getOrdersByStatus(status: Order['status']): Order[] {
+  return getOrders().filter(o => o.status === status);
+}
 
-export const getLogs = (): LogEntry[] => safeGet('hamb_central_logs', []);
+// Logs
+export function getLogs(): LogEntry[] {
+  return getFromStorage<LogEntry[]>(STORAGE_KEYS.LOGS, []);
+}
 
-export const addLog = (action: string, details: string) => {
+export function addLog(order: Order): void {
   const logs = getLogs();
-  const newLog = { id: crypto.randomUUID(), timestamp: Date.now(), action, details };
-  localStorage.setItem('hamb_central_logs', JSON.stringify([newLog, ...logs].slice(0, 50)));
-};
+  const logEntry: LogEntry = {
+    orderNumber: order.orderNumber,
+    dateTime: new Date().toLocaleString('pt-BR'),
+    customerName: order.customer.name,
+    paymentMethod: order.paymentMethod || 'N/A',
+    total: order.total,
+    // Full order data for reprinting
+    customer: order.customer,
+    items: order.items,
+    subtotal: order.subtotal,
+    deliveryFee: order.deliveryFee,
+    isDelivery: order.isDelivery,
+  };
+  logs.unshift(logEntry);
+  setToStorage(STORAGE_KEYS.LOGS, logs);
+}
 
-// --- STUBS (Para evitar erro em arquivos antigos) ---
-export const getProducts = () => [];
-export const addProduct = () => {};
-export const updateProduct = () => {};
-export const deleteProduct = () => {};
+export function clearLogs(): void {
+  setToStorage(STORAGE_KEYS.LOGS, []);
+}
