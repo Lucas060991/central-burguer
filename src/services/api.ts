@@ -1,7 +1,7 @@
 // src/services/api.ts
 
 // 🔴 SUBSTITUA PELA SUA URL DO APPS SCRIPT AQUI
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzpObZeKRktK6XyqUEcPO_Yc-q4fmn3nwhXlRS21ZP1WB3-fWEWREHQAmf0hn9BFC0/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby2GVETeIl9Ol-Wh6kJzTkQk0Kxn3eayj-ram-RWgvSXbvge0MTij9wpPII1zkF18V3/exec";
 
 // Interface compatível com o seu componente
 export interface Product {
@@ -102,5 +102,4 @@ createOrder: async (order: OrderData) => {
     }
   }
 };
-
 
