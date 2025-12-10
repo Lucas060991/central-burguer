@@ -1,6 +1,14 @@
-import { Product } from '@/services/api'; // Importa a definição da API
+// src/lib/storage.ts
 
-export type { Product }; // Re-exporta para usar nos componentes
+// --- DEFINIÇÕES DE TIPOS (Locais para evitar erros de importação) ---
+export interface Product {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  image: string;
+}
 
 export interface CartItem extends Product {
   quantity: number;
@@ -33,22 +41,23 @@ export interface LogEntry {
 // --- FUNÇÕES DO CARRINHO ---
 
 export const getCart = (): CartItem[] => {
-  const cart = localStorage.getItem('hamb_central_cart');
-  return cart ? JSON.parse(cart) : [];
+  try {
+    const cart = localStorage.getItem('hamb_central_cart');
+    return cart ? JSON.parse(cart) : [];
+  } catch (e) {
+    return [];
+  }
 };
 
 export const addToCart = (product: Product) => {
   const cart = getCart();
   
-  // O SEGREDO ESTÁ AQUI: Verifica pelo ID se o item já existe
-  // Convertemos para String para garantir que "100" (number) seja igual a "100" (string)
+  // Converte IDs para String para evitar duplicidade (100 vs "100")
   const existingItemIndex = cart.findIndex(item => String(item.id) === String(product.id));
 
   if (existingItemIndex > -1) {
-    // Se existe, só aumenta a quantidade
     cart[existingItemIndex].quantity += 1;
   } else {
-    // Se não existe, adiciona como novo
     cart.push({ ...product, quantity: 1 });
   }
 
@@ -59,13 +68,11 @@ export const updateCartItemQuantity = (productId: string, quantity: number) => {
   const cart = getCart();
   
   if (quantity < 1) {
-    // Se quantidade for 0, remove o item
     const newCart = cart.filter(item => String(item.id) !== String(productId));
     localStorage.setItem('hamb_central_cart', JSON.stringify(newCart));
     return;
   }
 
-  // Atualiza a quantidade
   const newCart = cart.map(item => 
     String(item.id) === String(productId) ? { ...item, quantity } : item
   );
@@ -77,11 +84,9 @@ export const clearCart = () => {
   localStorage.removeItem('hamb_central_cart');
 };
 
-// --- FUNÇÕES DE PEDIDOS E LOGS (Mantendo compatibilidade) ---
+// --- FUNÇÕES DE PEDIDO (ORDERS) ---
 
 export const createOrder = (customer: Customer, items: CartItem[], isDelivery: boolean): Order => {
-  const orders = getOrdersByStatus('kitchen'); // Pega existentes ou array vazio
-  
   const orderNumber = Math.floor(1000 + Math.random() * 9000).toString();
   
   const newOrder: Order = {
@@ -95,20 +100,25 @@ export const createOrder = (customer: Customer, items: CartItem[], isDelivery: b
     isDelivery
   };
 
-  // Salva no LocalStorage (Kitchen)
-  const allKitchenOrders = [...getOrdersByStatus('kitchen'), newOrder];
-  localStorage.setItem('hamb_central_orders_kitchen', JSON.stringify(allKitchenOrders));
+  // Salva no LocalStorage para a tela da cozinha funcionar localmente
+  const existingOrders = getOrdersByStatus('kitchen');
+  localStorage.setItem('hamb_central_orders_kitchen', JSON.stringify([...existingOrders, newOrder]));
   
-  // Log
   addLog(`Pedido #${orderNumber} criado`, `Cliente: ${customer.name}`);
 
   return newOrder;
 };
 
 export const getOrdersByStatus = (status: string): Order[] => {
-  const stored = localStorage.getItem(`hamb_central_orders_${status}`);
-  return stored ? JSON.parse(stored) : [];
+  try {
+    const stored = localStorage.getItem(`hamb_central_orders_${status}`);
+    return stored ? JSON.parse(stored) : [];
+  } catch (e) {
+    return [];
+  }
 };
+
+// --- LOGS ---
 
 export const addLog = (action: string, details: string) => {
   const logs = getLogs();
@@ -122,11 +132,21 @@ export const addLog = (action: string, details: string) => {
 };
 
 export const getLogs = (): LogEntry[] => {
-  const logs = localStorage.getItem('hamb_central_logs');
-  return logs ? JSON.parse(logs) : [];
+  try {
+    const logs = localStorage.getItem('hamb_central_logs');
+    return logs ? JSON.parse(logs) : [];
+  } catch (e) {
+    return [];
+  }
 };
 
-// Funções dummy para compatibilidade se o arquivo antigo tiver
-export const addProduct = (p: any) => {}; 
+// --- FUNÇÕES DE COMPATIBILIDADE (EVITA O CRASH) ---
+// Se algum arquivo antigo tentar chamar essas funções, elas existem (vazias) e o site não quebra.
+
+export const getProducts = (): Product[] => {
+  return []; // Agora os produtos vêm da API, mas mantemos isso para não dar erro de "missing export"
+};
+
+export const addProduct = (p: any) => { console.log("Use api.addProduct"); };
 export const updateProduct = (id: any, p: any) => {};
 export const deleteProduct = (id: any) => {};
