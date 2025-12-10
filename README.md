@@ -21,7 +21,7 @@ O projeto foi construído com uma stack moderna focada em performance, SEO e esc
 * **[Tailwind CSS](https://tailwindcss.com/)**: Framework de utilitários para estilização ágil e responsiva.
 * **[Shadcn/ui](https://ui.shadcn.com/)**: Componentes de interface reutilizáveis e acessíveis.
 
-## ⚙️ Funcionalidades & Roadmap
+## ⚙️ Funcionalidades & Roadmap 
 
 ### ✅ Implementado
 - [x] Estrutura inicial do projeto com Vite + React.
