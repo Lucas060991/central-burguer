@@ -257,7 +257,7 @@ export function createOrder(customer: Customer, items: CartItem[], isDelivery: b
     items: [...items],
     customer,
     isDelivery,
-    deliveryFee: finalDeliveryFee, // <--- Salvando o valor correto
+    deliveryFee: finalDeliveryFee, // <--- SALVE O VALOR CORRETO AQUI
     subtotal,
     total,
     status: 'pending',
