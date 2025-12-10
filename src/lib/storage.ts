@@ -243,30 +243,32 @@ export function saveOrders(orders: Order[]): void {
   setToStorage(STORAGE_KEYS.ORDERS, orders);
 }
 
-export function createOrder(customer: Customer, items: CartItem[], isDelivery: boolean): Order {
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const deliveryFee = isDelivery ? 5.00 : 0;
-  const total = subtotal + deliveryFee;
+export function createOrder(customer: Customer, items: CartItem[], isDelivery: boolean, customDeliveryFee: number = 0): Order {
+  const orderNumber = Math.floor(1000 + Math.random() * 9000).toString();
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   
-  const order: Order = {
-    id: Date.now().toString(),
-    orderNumber: getNextOrderNumber(),
+  const finalDeliveryFee = isDelivery ? customDeliveryFee : 0;
+  
+  const total = subtotal + finalDeliveryFee;
+
+  const newOrder: Order = {
+    id: crypto.randomUUID(),
+    orderNumber,
+    items: [...items],
     customer,
-    items,
-    subtotal,
-    deliveryFee,
-    total,
     isDelivery,
-    status: 'kitchen',
-    createdAt: new Date().toISOString(),
+    deliveryFee: finalDeliveryFee, // <--- Salvando o valor correto
+    subtotal,
+    total,
+    status: 'pending',
+    createdAt: Date.now(),
   };
-  
+
   const orders = getOrders();
-  orders.push(order);
-  saveOrders(orders);
-  clearCart();
-  
-  return order;
+  orders.push(newOrder);
+  localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
+
+  return newOrder;
 }
 
 export function updateOrderStatus(orderId: string, status: Order['status'], paymentMethod?: Order['paymentMethod']): void {
