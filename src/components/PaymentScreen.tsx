@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { Check, CreditCard, Banknote, DollarSign, Loader2, Clock } from 'lucide-react';
-import { Order, updateOrderStatus } from '@/lib/storage'; // Funções locais
-import { api } from '@/services/api'; // Nossa conexão com o Google Sheets
+import { CreditCard, Banknote, QrCode, Printer, Truck, MapPin } from 'lucide-react';
+import { Order, updateOrderStatus, addLog } from '@/lib/storage';
 import { toast } from 'sonner';
 
 interface PaymentScreenProps {
@@ -9,189 +8,224 @@ interface PaymentScreenProps {
   onOrdersChange: () => void;
 }
 
+type PaymentMethod = 'pix' | 'dinheiro' | 'cartao';
+
+const paymentMethods: { id: PaymentMethod; label: string; icon: typeof CreditCard }[] = [
+  { id: 'pix', label: 'PIX', icon: QrCode },
+  { id: 'dinheiro', label: 'Dinheiro', icon: Banknote },
+  { id: 'cartao', label: 'Cartão', icon: CreditCard },
+];
+
 export function PaymentScreen({ orders, onOrdersChange }: PaymentScreenProps) {
-  // Estado para controlar qual pedido está sendo enviado no momento (Loading)
-  const [sendingId, setSendingId] = useState<string | null>(null);
-  
-  // Estado para armazenar a forma de pagamento escolhida para cada pedido
-  const [paymentMethods, setPaymentMethods] = useState<Record<string, string>>({});
+  const [selectedPayment, setSelectedPayment] = useState<Record<string, PaymentMethod>>({});
+  const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
 
-  const handlePaymentMethodChange = (orderId: string, method: string) => {
-    setPaymentMethods(prev => ({ ...prev, [orderId]: method }));
-  };
-
-  const handleFinalize = async (order: Order) => {
-    const metodoPagamento = paymentMethods[order.id];
-
-    if (!metodoPagamento) {
-      toast.error('Selecione a forma de pagamento!');
+  const handlePayment = (order: Order) => {
+    const method = selectedPayment[order.id];
+    if (!method) {
+      toast.error('Selecione uma forma de pagamento');
       return;
     }
 
-    setSendingId(order.id); // Ativa o loading
-
-    try {
-      // 1. Prepara os dados formatados para a Planilha
-      const resumoItens = order.items
-        .map(item => `${item.quantity}x ${item.name}`)
-        .join('\n');
-
-      const dadosParaPlanilha = {
-        id_pedido: `#${order.orderNumber}`,
-        cliente: {
-          nome: order.customer.name,
-          telefone: order.customer.phone,
-          endereco_rua: order.isDelivery ? order.customer.address : "Retirada no Balcão",
-          endereco_numero: "", // Se tiver separado, coloque aqui
-          bairro: "" 
-        },
-        tipo_entrega: order.isDelivery ? "Delivery" : "Retirada",
-        forma_pagto: metodoPagamento, // Usa o que foi selecionado na tela
-        total: order.total,
-        resumo_itens: resumoItens,
-        obs: "" // Se tiver observação no pedido, adicione aqui
-      };
-
-      // 2. Envia para o Google Sheets (Aba Histórico)
-      const sucesso = await api.createOrder(dadosParaPlanilha);
-
-      if (sucesso) {
-        // 3. Atualiza localmente para "completed" (some da tela de pagamento)
-        updateOrderStatus(order.id, 'completed');
-        onOrdersChange();
-        toast.success(`Pedido #${order.orderNumber} finalizado e salvo no Histórico!`);
-      } else {
-        toast.error('Erro ao salvar na planilha. Tente novamente.');
-      }
-
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro de conexão.");
-    } finally {
-      setSendingId(null); // Desativa o loading
-    }
+    // Update order with payment method
+    updateOrderStatus(order.id, 'completed', method);
+    
+    // Add to log
+    addLog({ ...order, paymentMethod: method });
+    
+    // Set printing order for receipt
+    setPrintingOrder({ ...order, paymentMethod: method });
+    
+    // Trigger print
+    setTimeout(() => {
+      window.print();
+      setPrintingOrder(null);
+      onOrdersChange();
+      toast.success(`Pedido #${order.orderNumber} finalizado!`);
+    }, 100);
   };
 
   if (orders.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-muted-foreground animate-fade-in">
-        <Check className="w-16 h-16 mb-4 opacity-20" />
-        <h2 className="text-2xl font-display">Tudo pago por aqui!</h2>
-        <p>Nenhum pedido aguardando pagamento.</p>
+      <div className="animate-fade-in flex flex-col items-center justify-center py-20">
+        <CreditCard className="w-24 h-24 text-muted-foreground/30 mb-6" />
+        <h2 className="text-2xl font-display text-muted-foreground mb-2">NENHUM PAGAMENTO</h2>
+        <p className="text-muted-foreground">Aguardando pedidos prontos da cozinha</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <h2 className="text-3xl font-display text-foreground mb-6">PAGAMENTOS PENDENTES</h2>
-      
-      <div className="grid grid-cols-1 gap-4">
-        {orders.map((order) => (
-          <div key={order.id} className="bg-card border border-border rounded-xl p-6 shadow-sm">
-            <div className="flex flex-col md:flex-row justify-between gap-6">
-              
-              {/* Coluna da Esquerda: Dados do Pedido */}
-              <div className="flex-1 space-y-4">
-                <div className="flex items-center gap-3">
-                  <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-bold">
-                    #{order.orderNumber}
-                  </span>
-                  <span className="flex items-center gap-1 text-muted-foreground text-sm">
-                    <Clock className="w-4 h-4" />
-                    {new Date(order.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                  {order.isDelivery && (
-                    <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs font-bold">
-                      DELIVERY
-                    </span>
-                  )}
-                </div>
+    <div className="animate-fade-in">
+      <h2 className="text-3xl font-display text-foreground mb-6">PAGAMENTO</h2>
 
-                <div>
-                  <h3 className="font-bold text-lg">{order.customer.name}</h3>
-                  <p className="text-muted-foreground text-sm">{order.customer.address || "Retirada"}</p>
-                </div>
-
-                <div className="bg-secondary/50 p-3 rounded-lg text-sm space-y-1">
-                  {order.items.map((item, idx) => (
-                    <div key={idx} className="flex justify-between">
-                      <span>{item.quantity}x {item.name}</span>
-                      <span className="text-muted-foreground">R$ {(item.price * item.quantity).toFixed(2)}</span>
-                    </div>
-                  ))}
-                  <div className="border-t border-border mt-2 pt-2 flex justify-between font-bold text-base">
-                    <span>Total</span>
-                    <span>R$ {order.total.toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Coluna da Direita: Pagamento e Ação */}
-              <div className="md:w-72 space-y-4 flex flex-col justify-center border-l border-border pl-0 md:pl-6">
-                <label className="text-sm font-semibold text-muted-foreground">Forma de Pagamento:</label>
-                
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    onClick={() => handlePaymentMethodChange(order.id, 'Dinheiro')}
-                    className={`p-3 rounded-lg border flex flex-col items-center gap-1 transition-all ${
-                      paymentMethods[order.id] === 'Dinheiro' 
-                        ? 'bg-green-50 border-green-500 text-green-700' 
-                        : 'hover:bg-secondary'
-                    }`}
-                  >
-                    <Banknote className="w-5 h-5" />
-                    <span className="text-xs">Dinheiro</span>
-                  </button>
-
-                  <button
-                    onClick={() => handlePaymentMethodChange(order.id, 'Pix')}
-                    className={`p-3 rounded-lg border flex flex-col items-center gap-1 transition-all ${
-                      paymentMethods[order.id] === 'Pix' 
-                        ? 'bg-purple-50 border-purple-500 text-purple-700' 
-                        : 'hover:bg-secondary'
-                    }`}
-                  >
-                    <DollarSign className="w-5 h-5" />
-                    <span className="text-xs">Pix</span>
-                  </button>
-
-                  <button
-                    onClick={() => handlePaymentMethodChange(order.id, 'Cartão')}
-                    className={`p-3 rounded-lg border flex flex-col items-center gap-1 transition-all ${
-                      paymentMethods[order.id] === 'Cartão' 
-                        ? 'bg-blue-50 border-blue-500 text-blue-700' 
-                        : 'hover:bg-secondary'
-                    }`}
-                  >
-                    <CreditCard className="w-5 h-5" />
-                    <span className="text-xs">Cartão</span>
-                  </button>
-                </div>
-
-                <button
-                  onClick={() => handleFinalize(order)}
-                  disabled={sendingId === order.id}
-                  className="w-full btn-primary py-3 text-lg flex items-center justify-center gap-2 mt-2"
-                >
-                  {sendingId === order.id ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Salvando...
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-5 h-5" />
-                      Finalizar Pedido
-                    </>
-                  )}
-                </button>
-              </div>
-
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {orders.map((order, index) => (
+          <div
+            key={order.id}
+            className="order-card animate-slide-in"
+            style={{ animationDelay: `${index * 0.1}s` }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-3xl font-display text-primary">
+                #{order.orderNumber}
+              </span>
+              <span className="text-xl font-bold text-foreground">
+                R$ {order.total.toFixed(2)}
+              </span>
             </div>
+
+            <div className="mb-4 pb-4 border-b border-border">
+              <h4 className="font-semibold text-foreground flex items-center gap-2">
+                {order.customer.name}
+                {order.isDelivery && (
+                  <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Truck className="w-3 h-3" />
+                    Entrega
+                  </span>
+                )}
+              </h4>
+              {order.customer.phone && (
+                <p className="text-sm text-muted-foreground">{order.customer.phone}</p>
+              )}
+              {order.isDelivery && order.customer.address && (
+                <p className="text-sm text-muted-foreground flex items-start gap-1 mt-1">
+                  <MapPin className="w-3 h-3 mt-1 shrink-0" />
+                  {order.customer.address}
+                </p>
+              )}
+            </div>
+
+            <div className="mb-4">
+              <ul className="space-y-1 text-sm">
+                {order.items.map((item) => (
+                  <li key={item.id} className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      {item.quantity}x {item.name}
+                    </span>
+                    <span className="text-foreground">
+                      R$ {(item.price * item.quantity).toFixed(2)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {order.isDelivery && (
+                <div className="flex justify-between text-sm mt-2 pt-2 border-t border-border">
+                  <span className="text-muted-foreground">Frete</span>
+                  <span className="text-foreground">R$ {order.deliveryFee.toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="mb-4">
+              <h5 className="text-sm font-medium text-muted-foreground mb-3">
+                Forma de Pagamento
+              </h5>
+              <div className="grid grid-cols-3 gap-2">
+                {paymentMethods.map((method) => {
+                  const Icon = method.icon;
+                  const isSelected = selectedPayment[order.id] === method.id;
+                  
+                  return (
+                    <button
+                      key={method.id}
+                      onClick={() => setSelectedPayment({ ...selectedPayment, [order.id]: method.id })}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+                        isSelected
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-secondary/50 text-muted-foreground hover:border-primary/50'
+                      }`}
+                    >
+                      <Icon className="w-6 h-6" />
+                      <span className="text-xs font-medium">{method.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <button
+              onClick={() => handlePayment(order)}
+              className="btn-primary w-full flex items-center justify-center gap-2"
+            >
+              <Printer className="w-5 h-5" />
+              Finalizar e Imprimir
+            </button>
           </div>
         ))}
       </div>
+
+      {/* Print Receipt */}
+      {printingOrder && (
+        <div className="receipt">
+          <div className="receipt-header">
+            <h1>HAMBURGUERIA CENTRAL</h1>
+            <p>Rua Principal, 123 - Centro</p>
+            <p>Tel: (11) 99999-9999</p>
+          </div>
+          
+          <div className="receipt-divider" />
+          
+          <p style={{ textAlign: 'center', fontWeight: 'bold' }}>
+            PEDIDO #{printingOrder.orderNumber}
+          </p>
+          <p>{new Date().toLocaleString('pt-BR')}</p>
+          
+          <div className="receipt-divider" />
+          
+          <p><strong>Cliente:</strong> {printingOrder.customer.name}</p>
+          {printingOrder.customer.phone && (
+            <p><strong>Tel:</strong> {printingOrder.customer.phone}</p>
+          )}
+          {printingOrder.isDelivery && printingOrder.customer.address && (
+            <p><strong>Endereço:</strong> {printingOrder.customer.address}</p>
+          )}
+          
+          <div className="receipt-divider" />
+          
+          <p><strong>ITENS:</strong></p>
+          {printingOrder.items.map((item) => (
+            <div key={item.id} className="receipt-item">
+              <span>{item.quantity}x {item.name}</span>
+              <span>R$ {(item.price * item.quantity).toFixed(2)}</span>
+            </div>
+          ))}
+          
+          <div className="receipt-divider" />
+          
+          <div className="receipt-item">
+            <span>Subtotal</span>
+            <span>R$ {printingOrder.subtotal.toFixed(2)}</span>
+          </div>
+          
+          {printingOrder.isDelivery && (
+            <div className="receipt-item">
+              <span>Frete</span>
+              <span>R$ {printingOrder.deliveryFee.toFixed(2)}</span>
+            </div>
+          )}
+          
+          <div className="receipt-total">
+            <div className="receipt-item">
+              <span>TOTAL</span>
+              <span>R$ {printingOrder.total.toFixed(2)}</span>
+            </div>
+          </div>
+          
+          <div className="receipt-divider" />
+          
+          <p><strong>Pagamento:</strong> {
+            printingOrder.paymentMethod === 'pix' ? 'PIX' :
+            printingOrder.paymentMethod === 'dinheiro' ? 'Dinheiro' :
+            printingOrder.paymentMethod === 'cartao' ? 'Cartão' : 'N/A'
+          }</p>
+          
+          <div className="receipt-footer">
+            <p>Obrigado pela preferência!</p>
+            <p>Volte sempre!</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

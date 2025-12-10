@@ -1,4 +1,4 @@
-import { UtensilsCrossed, ShoppingBag, CreditCard, ChefHat, ScrollText } from 'lucide-react';
+import { ShoppingBag, ChefHat, CreditCard, FileText, UtensilsCrossed, Lock } from 'lucide-react';
 
 type Tab = 'menu' | 'cart' | 'kitchen' | 'payment' | 'logs';
 
@@ -11,81 +11,85 @@ interface NavigationProps {
   isAuthenticated: boolean;
 }
 
-export function Navigation({ 
-  activeTab, 
-  onTabChange, 
-  cartCount, 
-  kitchenCount, 
-  paymentCount,
-  isAuthenticated 
-}: NavigationProps) {
-  
-  // Função auxiliar para renderizar botões com estilo consistente
-  const NavButton = ({ tab, icon: Icon, label, count, badgeColor }: any) => (
-    <button
-      onClick={() => onTabChange(tab)}
-      className={`relative flex flex-col items-center justify-center p-2 min-w-[64px] rounded-lg transition-all ${
-        activeTab === tab 
-          ? 'text-primary bg-primary/10' 
-          : 'text-muted-foreground hover:bg-secondary/50'
-      }`}
-    >
-      <div className="relative">
-        <Icon className={`w-6 h-6 ${activeTab === tab ? 'stroke-[2.5px]' : ''}`} />
-        {count > 0 && (
-          <span className={`absolute -top-2 -right-2 ${badgeColor || 'bg-red-500'} text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center border-2 border-background`}>
-            {count}
-          </span>
-        )}
-      </div>
-      <span className="text-[10px] font-medium mt-1">{label}</span>
-    </button>
-  );
+const tabs = [
+  { id: 'menu' as Tab, label: 'Cardápio', icon: UtensilsCrossed, protected: false },
+  { id: 'cart' as Tab, label: 'Carrinho', icon: ShoppingBag, protected: false },
+  { id: 'kitchen' as Tab, label: 'Cozinha', icon: ChefHat, protected: true },
+  { id: 'payment' as Tab, label: 'Pagamento', icon: CreditCard, protected: true },
+  { id: 'logs' as Tab, label: 'Histórico', icon: FileText, protected: true },
+];
+
+export function Navigation({ activeTab, onTabChange, cartCount, kitchenCount, paymentCount, isAuthenticated }: NavigationProps) {
+  const getBadge = (tabId: Tab) => {
+    switch (tabId) {
+      case 'cart': return cartCount > 0 ? cartCount : null;
+      case 'kitchen': return kitchenCount > 0 ? kitchenCount : null;
+      case 'payment': return paymentCount > 0 ? paymentCount : null;
+      default: return null;
+    }
+  };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border pb-safe pt-2 px-4 z-50 md:sticky md:top-0 md:border-b md:border-t-0 md:bg-background/95">
-      <div className="container mx-auto max-w-4xl flex items-center justify-between md:justify-center md:gap-8">
+    <nav className="bg-card border-b border-border sticky top-0 z-40">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between h-16">
+          <h1 className="text-2xl md:text-3xl font-display text-primary tracking-wider">
+            🍔 HAMBURGUERIA CENTRAL
+          </h1>
+          
+          <div className="hidden md:flex items-center gap-2">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const badge = getBadge(tab.id);
+              
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => onTabChange(tab.id)}
+                  className={`nav-tab relative flex items-center gap-2 ${
+                    activeTab === tab.id ? 'nav-tab-active' : ''
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {tab.label}
+                  {tab.protected && !isAuthenticated && <Lock className="w-3 h-3 text-muted-foreground" />}
+                  {badge && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-accent text-accent-foreground rounded-full text-xs font-bold flex items-center justify-center">
+                      {badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         
-        {/* 1. CARDÁPIO */}
-        <NavButton 
-          tab="menu" 
-          icon={UtensilsCrossed} 
-          label="Cardápio" 
-        />
-
-        {/* 2. CARRINHO */}
-        <NavButton 
-          tab="cart" 
-          icon={ShoppingBag} 
-          label="Carrinho" 
-          count={cartCount} 
-        />
-
-        {/* 3. PAGAMENTO (Movido para antes da Cozinha) */}
-        <NavButton 
-          tab="payment" 
-          icon={CreditCard} 
-          label="Pagamento" 
-          count={paymentCount}
-          badgeColor="bg-blue-500"
-        />
-
-        {/* 4. COZINHA */}
-        <NavButton 
-          tab="kitchen" 
-          icon={ChefHat} 
-          label="Cozinha" 
-          count={kitchenCount}
-          badgeColor="bg-orange-500"
-        />
-
-        {/* 5. HISTÓRICO */}
-        <NavButton 
-          tab="logs" 
-          icon={ScrollText} 
-          label="Histórico" 
-        />
-
+        {/* Mobile Navigation */}
+        <div className="flex md:hidden overflow-x-auto pb-2 gap-2 -mx-4 px-4">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const badge = getBadge(tab.id);
+            
+            return (
+              <button
+                key={tab.id}
+                onClick={() => onTabChange(tab.id)}
+                className={`nav-tab relative flex items-center gap-1 whitespace-nowrap text-xs ${
+                  activeTab === tab.id ? 'nav-tab-active' : ''
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+                {tab.protected && !isAuthenticated && <Lock className="w-3 h-3 text-muted-foreground" />}
+                {badge && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent text-accent-foreground rounded-full text-[10px] font-bold flex items-center justify-center">
+                    {badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );
