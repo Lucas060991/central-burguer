@@ -1,15 +1,15 @@
-const ORDERS_KEY = "central-burguer-orders";
+import { api } from '@/services/api'; 
 
-// Storage keys
+// --- CONFIGURAÇÃO DE CHAVES ---
 const STORAGE_KEYS = {
   PRODUCTS: 'hamburgueria_products',
   CART: 'hamburgueria_cart',
-  ORDERS: 'hamburgueria_orders',
+  ORDERS: 'hamburgueria_orders', // Unificamos tudo aqui
   LOGS: 'hamburgueria_logs',
   ORDER_COUNTER: 'hamburgueria_order_counter',
 } as const;
 
-// Types
+// --- TYPES ---
 export interface Product {
   id: string;
   name: string;
@@ -30,25 +30,24 @@ export interface Customer {
 
 export interface Order {
   id: string;
-  orderNumber: number;
+  orderNumber: string; // CORREÇÃO: Mudado para string para aceitar o .toString()
   customer: Customer;
   items: CartItem[];
   subtotal: number;
   deliveryFee: number;
   total: number;
   isDelivery: boolean;
-  status: 'kitchen' | 'payment' | 'completed';
-  createdAt: string;
+  status: 'pending' | 'kitchen' | 'payment' | 'completed'; // Adicionado 'pending' que faltava
+  createdAt: number; // CORREÇÃO: Mudado para number para aceitar Date.now()
   paymentMethod?: 'pix' | 'dinheiro' | 'cartao';
 }
 
 export interface LogEntry {
-  orderNumber: number;
+  orderNumber: string; // CORREÇÃO: string
   dateTime: string;
   customerName: string;
   paymentMethod: string;
   total: number;
-  // Full order data for reprinting
   customer: Customer;
   items: CartItem[];
   subtotal: number;
@@ -56,7 +55,7 @@ export interface LogEntry {
   isDelivery: boolean;
 }
 
-// Default products
+// --- DEFAULT PRODUCTS ---
 const defaultProducts: Product[] = [
   {
     id: '1',
@@ -137,7 +136,7 @@ const defaultProducts: Product[] = [
   },
 ];
 
-// Helper functions
+// --- HELPER FUNCTIONS ---
 function getFromStorage<T>(key: string, defaultValue: T): T {
   try {
     const item = localStorage.getItem(key);
@@ -151,7 +150,7 @@ function setToStorage<T>(key: string, value: T): void {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-// Products
+// --- PRODUCTS ---
 export function getProducts(): Product[] {
   const products = getFromStorage<Product[]>(STORAGE_KEYS.PRODUCTS, []);
   if (products.length === 0) {
@@ -190,7 +189,7 @@ export function deleteProduct(id: string): void {
   saveProducts(products);
 }
 
-// Cart
+// --- CART ---
 export function getCart(): CartItem[] {
   return getFromStorage<CartItem[]>(STORAGE_KEYS.CART, []);
 }
@@ -229,7 +228,7 @@ export function clearCart(): void {
   saveCart([]);
 }
 
-// Orders
+// --- ORDERS ---
 export function getNextOrderNumber(): number {
   const counter = getFromStorage<number>(STORAGE_KEYS.ORDER_COUNTER, 1000);
   const nextNumber = counter + 1;
@@ -245,9 +244,17 @@ export function saveOrders(orders: Order[]): void {
   setToStorage(STORAGE_KEYS.ORDERS, orders);
 }
 
-export function createOrder(customer: Customer, items: CartItem[], isDelivery: boolean, customDeliveryFee: number = 0): Order {
+// *** FUNÇÃO PRINCIPAL CORRIGIDA ***
+export function createOrder(
+  customer: Customer, 
+  items: CartItem[], 
+  isDelivery: boolean, 
+  customDeliveryFee: number = 0
+): Order {
+  // Gerando número como string para compatibilidade
   const orderNumber = Math.floor(1000 + Math.random() * 9000).toString();
- const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   
   const finalDeliveryFee = isDelivery ? customDeliveryFee : 0;
   
@@ -263,12 +270,12 @@ export function createOrder(customer: Customer, items: CartItem[], isDelivery: b
     subtotal,
     total,
     status: 'pending',
-    createdAt: Date.now(),
+    createdAt: Date.now(), // Agora é number (timestamp)
   };
 
   const orders = getOrders();
   orders.push(newOrder);
-  localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
+  saveOrders(orders); // Usa a função correta para salvar com a chave correta
 
   return newOrder;
 }
@@ -289,7 +296,7 @@ export function getOrdersByStatus(status: Order['status']): Order[] {
   return getOrders().filter(o => o.status === status);
 }
 
-// Logs
+// --- LOGS ---
 export function getLogs(): LogEntry[] {
   return getFromStorage<LogEntry[]>(STORAGE_KEYS.LOGS, []);
 }
@@ -302,7 +309,6 @@ export function addLog(order: Order): void {
     customerName: order.customer.name,
     paymentMethod: order.paymentMethod || 'N/A',
     total: order.total,
-    // Full order data for reprinting
     customer: order.customer,
     items: order.items,
     subtotal: order.subtotal,
