@@ -1,9 +1,8 @@
 // src/services/api.ts
 
-// 🔴 SUBSTITUA PELA SUA URL DO APPS SCRIPT AQUI
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzpObZeKRktK6XyqUEcPO_Yc-q4fmn3nwhXlRS21ZP1WB3-fWEWREHQAmf0hn9BFC0/exec";
+// 🔴 ATENÇÃO: SE VOCÊ GEROU NOVA VERSÃO NO SCRIPT, O LINK PODE TER MUDADO
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzpObZeKRktK6XyqUEcPO_Yc-q4fmn3nwhXlRS21ZP1WB3-fWEWREHQAmf0hn9BFC0/exec"; 
 
-// Interface compatível com o seu componente
 export interface Product {
   id: string;
   name: string;
@@ -19,31 +18,33 @@ export interface OrderData {
     nome: string;
     telefone: string;
     endereco_rua: string;
-    endereco_numero: string;
-    bairro: string;
   };
   tipo_entrega: string;
-  forma_pagto: string;
+  forma_pagto: string; // <--- Importante
   total: number;
   resumo_itens: string;
   obs: string;
 }
-export interface NewProductData {
-  name: string;
-  description: string;
-  price: number;
-  category: string;
-  image: string;
-}
 
 export const api = {
-  // Busca produtos e converte os nomes das colunas
+  // Função auxiliar para evitar repetição
+  _send: async (body: any) => {
+    try {
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: "POST",
+        body: JSON.stringify(body)
+      });
+      return true;
+    } catch (error) {
+      console.error(error);
+      return false;
+    }
+  },
+
   getProducts: async (): Promise<Product[]> => {
     try {
       const response = await fetch(GOOGLE_SCRIPT_URL);
       const data = await response.json();
-      
-      // Mapeia do Português (Planilha) para Inglês (Site)
       return data.map((item: any) => ({
         id: String(item.id),
         name: item.nome,
@@ -53,54 +54,33 @@ export const api = {
         image: item.imagem_url
       }));
     } catch (error) {
-      console.error("Erro ao carregar cardápio:", error);
       return [];
     }
   },
 
-  // Envia o pedido para a planilha
-createOrder: async (order: OrderData) => {
-    try {
-      await fetch(GOOGLE_SCRIPT_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: 'create_order', // <--- Importante para o script saber
-          ...order
-        })
-      });
-      return true;
-    } catch (error) {
-      console.error("Erro ao enviar pedido:", error);
-      return false;
-    }
+  addProduct: async (product: any) => {
+    return api._send({
+      action: 'create_product',
+      nome: product.name,
+      descricao: product.description,
+      preco: product.price,
+      category: product.category,
+      imagem_url: product.image
+    });
   },
 
-  addProduct: async (product: NewProductData) => {
-    try {
-      // Mapeia do Inglês (Site) para Português (Planilha)
-      const payload = {
-        action: 'create_product', // <--- O SEGREDO ESTÁ AQUI
-        nome: product.name,
-        descricao: product.description,
-        preco: product.price,
-        categoria: product.category,
-        imagem_url: product.image
-      };
+  // NOVA FUNÇÃO: DELETAR
+  deleteProduct: async (id: string) => {
+    return api._send({
+      action: 'delete_product',
+      id: id
+    });
+  },
 
-      await fetch(GOOGLE_SCRIPT_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      return true;
-    } catch (error) {
-      console.error("Erro ao adicionar produto:", error);
-      return false;
-    }
+  createOrder: async (order: OrderData) => {
+    return api._send({
+      action: 'create_order',
+      ...order
+    });
   }
 };
-
-
